@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Minhas Receitas</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#008000">
+  <style>
+    body {
+      font-family: Arial;
+      max-width: 600px;
+      margin: auto;
+      padding: 20px;
+    }
+    input, button {
+      padding: 10px;
+      margin: 5px 0;
+      width: 100%;
+    }
+    ul {
+      list-style-type: none;
+      padding: 0;
+    }
+    li {
+      background: #f0f0f0;
+      margin: 5px 0;
+      padding: 10px;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Minhas Receitas</h1>
+  <input id="descricao" placeholder="Descrição" />
+  <input id="valor" type="number" placeholder="Valor (R$)" />
+  <button onclick="adicionarReceita()">Registrar</button>
+
+  <h2>Receitas</h2>
+  <ul id="listaReceitas"></ul>
+  <h3>Total: R$ <span id="total">0.00</span></h3>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js');
+    }
+
+    let receitas = JSON.parse(localStorage.getItem('receitas')) || [];
+
+    function adicionarReceita() {
+      const descricao = document.getElementById('descricao').value;
+      const valor = parseFloat(document.getElementById('valor').value);
+
+      if (!descricao || isNaN(valor)) {
+        alert("Preencha os dois campos!");
+        return;
+      }
+
+      receitas.push({ descricao, valor });
+      localStorage.setItem('receitas', JSON.stringify(receitas));
+      atualizarLista();
+      document.getElementById('descricao').value = '';
+      document.getElementById('valor').value = '';
+    }
+
+    function atualizarLista() {
+      const lista = document.getElementById('listaReceitas');
+      const total = document.getElementById('total');
+      lista.innerHTML = '';
+      let soma = 0;
+
+      receitas.forEach(r => {
+        const li = document.createElement('li');
+        li.textContent = `${r.descricao} - R$ ${r.valor.toFixed(2)}`;
+        lista.appendChild(li);
+        soma += r.valor;
+      });
+
+      total.textContent = soma.toFixed(2);
+    }
+
+    atualizarLista();
+  </script>
+</body>
+</html>
