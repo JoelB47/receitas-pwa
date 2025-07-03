@@ -4,79 +4,197 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Minhas Receitas</title>
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#008000">
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#121212" />
   <style>
     body {
       font-family: Arial;
       max-width: 600px;
       margin: auto;
       padding: 20px;
+      background-color: #121212;
+      color: #f1f1f1;
     }
-    input, button {
+    input, button, select {
       padding: 10px;
       margin: 5px 0;
       width: 100%;
+      background: #1e1e1e;
+      border: 1px solid #333;
+      color: #fff;
     }
     ul {
-      list-style-type: none;
+      list-style: none;
       padding: 0;
     }
     li {
-      background: #f0f0f0;
+      background: #1e1e1e;
       margin: 5px 0;
       padding: 10px;
       border-radius: 5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .data {
+      font-size: 0.8em;
+      opacity: 0.7;
+    }
+    .excluir {
+      background: #ff4444;
+      border: none;
+      padding: 5px 10px;
+      color: white;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .total {
+      font-weight: bold;
+      font-size: 1.2em;
+      margin-top: 10px;
     }
   </style>
 </head>
 <body>
   <h1>Minhas Receitas</h1>
+
   <input id="descricao" placeholder="Descrição" />
   <input id="valor" type="number" placeholder="Valor (R$)" />
   <button onclick="adicionarReceita()">Registrar</button>
 
-  <h2>Receitas</h2>
+  <select id="filtroMes" onchange="filtrarPorMes()">
+    <option value="todos">Todas as receitas</option>
+  </select>
+
   <ul id="listaReceitas"></ul>
-  <h3>Total: R$ <span id="total">0.00</span></h3>
 
+  <div class="total">Total: R$ <span id="total">0.00</span></div>
+  <button onclick="exportarCSV()">📤 Exportar CSV</button>
+
+  <canvas id="grafico" style="margin-top: 20px; width: 100%; max-height: 300px;"></canvas>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js');
-    }
-
-    let receitas = JSON.parse(localStorage.getItem('receitas')) || [];
+    let receitas = JSON.parse(localStorage.getItem("receitas")) || [];
 
     function adicionarReceita() {
-      const descricao = document.getElementById('descricao').value;
-      const valor = parseFloat(document.getElementById('valor').value);
+      const descricao = document.getElementById("descricao").value;
+      const valor = parseFloat(document.getElementById("valor").value);
+      const data = new Date().toISOString();
 
       if (!descricao || isNaN(valor)) {
         alert("Preencha os dois campos!");
         return;
       }
 
-      receitas.push({ descricao, valor });
-      localStorage.setItem('receitas', JSON.stringify(receitas));
+      receitas.push({ descricao, valor, data });
+      salvar();
+    }
+
+    function salvar() {
+      localStorage.setItem("receitas", JSON.stringify(receitas));
       atualizarLista();
-      document.getElementById('descricao').value = '';
-      document.getElementById('valor').value = '';
+    }
+
+    function excluirReceita(index) {
+      receitas.splice(index, 1);
+      salvar();
     }
 
     function atualizarLista() {
-      const lista = document.getElementById('listaReceitas');
-      const total = document.getElementById('total');
-      lista.innerHTML = '';
-      let soma = 0;
+      const lista = document.getElementById("listaReceitas");
+      const totalSpan = document.getElementById("total");
+      const filtroMes = document.getElementById("filtroMes").value;
 
-      receitas.forEach(r => {
-        const li = document.createElement('li');
-        li.textContent = `${r.descricao} - R$ ${r.valor.toFixed(2)}`;
+      lista.innerHTML = "";
+      let soma = 0;
+      const mesesUnicos = new Set();
+
+      receitas.forEach((r, i) => {
+        const data = new Date(r.data);
+        const mes = `${data.getFullYear()}-${String(data.getMonth()+1).padStart(2, "0")}`;
+        mesesUnicos.add(mes);
+
+        const mostrar = filtroMes === "todos" || filtroMes === mes;
+        if (!mostrar) return;
+
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <div>
+            ${r.descricao} - R$ ${r.valor.toFixed(2)}
+            <div class="data">${new Date(r.data).toLocaleDateString()}</div>
+          </div>
+          <button class="excluir" onclick="excluirReceita(${i})">🗑️</button>
+        `;
         lista.appendChild(li);
         soma += r.valor;
       });
 
-      total.textContent = soma.toFixed(2);
+      totalSpan.textContent = soma.toFixed(2);
+
+      atualizarFiltro([...mesesUnicos]);
+      atualizarGrafico();
+    }
+
+    function atualizarFiltro(meses) {
+      const select = document.getElementById("filtroMes");
+      const selecionado = select.value;
+      select.innerHTML = `<option value="todos">Todas as receitas</option>`;
+      meses.sort().forEach(m => {
+        const opt = document.createElement("option");
+        opt.value = m;
+        opt.textContent = m;
+        if (m === selecionado) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    function filtrarPorMes() {
+      atualizarLista();
+    }
+
+    function exportarCSV() {
+      const linhas = ["Descrição,Valor,Data"];
+      receitas.forEach(r => {
+        linhas.push(`"${r.descricao}",${r.valor},"${new Date(r.data).toLocaleDateString()}"`);
+      });
+      const blob = new Blob([linhas.join("\n")], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "receitas.csv";
+      a.click();
+    }
+
+    let chart;
+    function atualizarGrafico() {
+      const ctx = document.getElementById("grafico").getContext("2d");
+      const agrupado = {};
+
+      receitas.forEach(r => {
+        const mes = new Date(r.data).toLocaleDateString().slice(3);
+        agrupado[mes] = (agrupado[mes] || 0) + r.valor;
+      });
+
+      const labels = Object.keys(agrupado);
+      const valores = Object.values(agrupado);
+
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            label: "Total por mês",
+            backgroundColor: "#00c853",
+            data: valores,
+          }],
+        },
+        options: {
+          responsive: true,
+          scales: { y: { beginAtZero: true } }
+        }
+      });
     }
 
     atualizarLista();
