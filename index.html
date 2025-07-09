@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -9,17 +8,31 @@
   <meta name="theme-color" content="#4a148c" />
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+    :root {
+      --bg: #f9f7fd;
+      --fg: #333;
+      --card: #fff;
+      --primary: #4a148c;
+      --button: #6a1b9a;
+      --danger: #d50000;
+    }
+    body.dark {
+      --bg: #1e1e2e;
+      --fg: #eee;
+      --card: #2a2a3a;
+    }
     body {
       font-family: 'Inter', sans-serif;
       max-width: 600px;
       margin: auto;
       padding: 20px;
-      background-color: #f9f7fd;
-      color: #333;
+      background-color: var(--bg);
+      color: var(--fg);
+      transition: all 0.3s ease;
     }
-    header { text-align: center; margin-bottom: 20px; }
+    header { text-align: center; margin-bottom: 20px; position: relative; }
     header img { width: 100px; }
-    h1 { color: #4a148c; font-weight: 600; }
+    h1 { color: var(--primary); font-weight: 600; }
     input, button, select {
       padding: 12px;
       margin: 5px 0;
@@ -29,27 +42,26 @@
       font-size: 1em;
     }
     button {
-      background-color: #6a1b9a;
+      background-color: var(--button);
       color: white;
       font-weight: bold;
       border: none;
     }
-    button:hover { background-color: #4a148c; }
+    button:hover { background-color: var(--primary); }
     ul { list-style: none; padding: 0; }
     li {
-      background: #fff;
+      background: var(--card);
       margin: 10px 0;
       padding: 12px;
       border-radius: 8px;
       border: 1px solid #ddd;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
     .data { font-size: 0.8em; color: #888; }
     .excluir {
-      background: #d50000;
+      background: var(--danger);
       border: none;
       padding: 6px 12px;
       color: white;
@@ -60,7 +72,19 @@
       font-weight: bold;
       font-size: 1.2em;
       margin-top: 10px;
-      color: #4a148c;
+      color: var(--primary);
+    }
+    .modo-btn {
+      background-color: var(--button);
+      color: #fff;
+      border: none;
+      border-radius: 30px;
+      padding: 8px 16px;
+      font-size: 0.9em;
+      position: absolute;
+      right: 10px;
+      top: 85px;
+      cursor: pointer;
     }
   </style>
 </head>
@@ -68,6 +92,7 @@
   <header>
     <img src="logo.png" alt="Logo">
     <h1>Organizar Receitas</h1>
+    <button class="modo-btn" onclick="alternarModo()" id="modoBtn">🌙 Modo Escuro</button>
     <div id="boasvindas"></div>
   </header>
 
@@ -96,8 +121,11 @@
 
     <button onclick="exportarCSV()">📤 Exportar CSV</button>
     <button onclick="exportarXLS()">📥 Exportar Excel</button>
+
+    <canvas id="grafico" style="margin-top: 20px; width: 100%; max-height: 300px;"></canvas>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
     let receitas = JSON.parse(localStorage.getItem("receitas")) || [];
 
@@ -118,6 +146,20 @@
         document.getElementById("app").style.display = "block";
         atualizarLista();
       }
+      const modo = localStorage.getItem("modo");
+      if (modo === "dark") {
+        document.body.classList.add("dark");
+        document.getElementById("modoBtn").textContent = "☀️ Modo Claro";
+      }
+    }
+
+    function alternarModo() {
+      const corpo = document.body;
+      corpo.classList.toggle("dark");
+      const modoAtual = corpo.classList.contains("dark") ? "dark" : "light";
+      localStorage.setItem("modo", modoAtual);
+      const btn = document.getElementById("modoBtn");
+      btn.textContent = modoAtual === "dark" ? "☀️ Modo Claro" : "🌙 Modo Escuro";
     }
 
     function adicionarReceita() {
@@ -159,6 +201,33 @@
         total += r.valor;
       });
       document.getElementById("total").textContent = total.toFixed(2);
+      atualizarGrafico();
+    }
+
+    function atualizarGrafico() {
+      const ctx = document.getElementById("grafico").getContext("2d");
+      const categorias = {};
+      receitas.forEach(r => {
+        categorias[r.categoria] = (categorias[r.categoria] || 0) + r.valor;
+      });
+      const labels = Object.keys(categorias);
+      const valores = Object.values(categorias);
+      if (window.chart) window.chart.destroy();
+      window.chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Total por Categoria',
+            data: valores,
+            backgroundColor: ['#7b1fa2', '#4a148c', '#9575cd']
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: { y: { beginAtZero: true } }
+        }
+      });
     }
 
     function exportarCSV() {
@@ -166,7 +235,7 @@
       receitas.forEach(r => {
         linhas.push(`"${r.descricao}",${r.valor},"${r.categoria}","${new Date(r.data).toLocaleDateString()}"`);
       });
-      const blob = new Blob([linhas.join("\\n")], { type: "text/csv" });
+      const blob = new Blob([linhas.join("\n")], { type: "text/csv" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = "receitas.csv";
@@ -179,7 +248,7 @@
         html += `<tr><td>${r.descricao}</td><td>${r.valor}</td><td>${r.categoria}</td><td>${new Date(r.data).toLocaleDateString()}</td></tr>`;
       });
       html += "</table>";
-      const blob = new Blob(["\\ufeff" + html], { type: "application/vnd.ms-excel" });
+      const blob = new Blob(["\ufeff" + html], { type: "application/vnd.ms-excel" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = "receitas.xls";
